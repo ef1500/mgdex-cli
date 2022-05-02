@@ -8,6 +8,7 @@ import regex as re
 import requests as rx
 import time as tm
 
+from requests_futures.sessions import FuturesSession
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -173,16 +174,16 @@ class Chapter:
         folderpath = os.path.join(path, folderformat)
         os.mkdir(folderpath)
 
-        def downloadPage(pgs):
-            image_data = rx.get(pgs[1])
-            fx = open(os.path.join(folderpath, pgs[0]), "wb")
-            fx.write(image_data.content)
-            fx.close()
+        def downloadPage(pgs, ses):
+            image_data = ses.get(pgs[1])
+            img_dat = image_data.result()
+            with open(os.path.join(folderpath, pgs[0]), "wb") as f:
+                f.write(img_dat.content)
 
         # See line 251 for explanation why this isn't os.cpu_count()*2
-        with ThreadPoolExecutor(max_workers=os.cpu_count()) as threadpool_page:
-            for pgs in self.page_data:
-                threadpool_page.submit(downloadPage, pgs)
+        session = FuturesSession(max_workers=os.cpu_count())
+        for pgs in self.page_data:
+            downloadPage(pgs, session)
 
 
 # Get The Chapter List
