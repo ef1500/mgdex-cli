@@ -18,7 +18,7 @@ pip install -r requirements.txt
 | --folderformat                                                                                         | The Format of the Folders that the chapters will be held in (See the next table for more info)       |
 | --download_covers                                                                                      | Only Download the Manga Cover Art                                                                    |
 | --download_all                                                                                         | Download all chapters                                                                                |
-| --download_latest Download Latest Chapter (May take a few minutes depending on the number of chapters) |                                                                                                      |
+| --download_latest   | Download Latest Chapter (May take a few minutes depending on the number of chapters) |                                                                                                      |
 | --download_first                                                                                       | Download the First Chapter (May take a few minutes depending on the number of chapters)              |
 
 Folder Formatting Defaults to `Vol-%Vl_Ch-%Ch`, but you can change how the folders are structured using the following table
