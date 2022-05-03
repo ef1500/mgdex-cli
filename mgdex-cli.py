@@ -1,4 +1,5 @@
 # Main.py
+# ef1500
 # CLI interface
 
 import os
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--download_latest", help="Only Download the latest chapter, May take a couple minutes", action="store_true")
     parser.add_argument("-a", "--download_all", help="Download all chapters", action="store_true")
     parser.add_argument("-f", "--download_first", help="Download the first chapter, May take a couple minutes", action="store_true")
+    parser.add_argument("-i", "--info", help="Write a text file containing information about the manga", action="store_true")
 
     args = parser.parse_args()
 
@@ -49,3 +51,6 @@ if __name__ == "__main__":
             os.mkdir(argpath)
         chpt = ma.Chapters(args.id) 
         chpt.DownloadLatest(argpath, args.folderformat)
+
+    if args.info == True:
+        manga.writeData(argpath)
