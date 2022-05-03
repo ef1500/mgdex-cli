@@ -10,7 +10,8 @@ import time as tm
 
 from requests_futures.sessions import FuturesSession
 from concurrent.futures import ThreadPoolExecutor
-
+from rich import progress
+from slugify import slugify
 
 # Resolve Author Information
 class Author:
@@ -57,7 +58,11 @@ class Manga:
         self.title = rqd["data"]["attributes"]["title"]["en"]
         self.alt_titles = rqd["data"]["attributes"]["altTitles"]
 
-        self.description = rqd["data"]["attributes"]["description"]
+        self.description = ""
+        try:
+            self.description = rqd["data"]["attributes"]["description"]["en"]
+        except:
+            pass
 
         self.trackers = {
             "Kitsu" : "",
@@ -94,11 +99,61 @@ class Manga:
         self.illustrator = ""
         self.author = ""
 
+        self.illustobj = None
+        self.authorobj = None
+
         for mangaka in rqd["data"]["relationships"]:
             if mangaka["type"] == "author":
+                self.authorobj = Author(mangaka["id"])
                 self.author = mangaka["attributes"]["name"]
             if mangaka["type"] == "illustrator":
+                self.illustobj = Author(mangaka["id"])
                 self.illustrator = mangaka["attributes"]["name"]
+    
+    # Function to write all of the Manga Information to a text file
+    def writeData(self, folderpath):
+        with open(os.path.join(folderpath, "info.txt"), "a+", encoding='utf8') as datawriter:
+            datawriter.write("Title: " + self.title + '\n' + '\n')
+            datawriter.write("Alt Titles " + '\n')
+            for alt_title in self.alt_titles:
+                t_lst = list(alt_title.items())
+                datawriter.writelines(t_lst[0][0] + ' : ' + t_lst[0][1] + '\n')
+
+            datawriter.write('\n')
+            datawriter.writelines(["Author: ", self.author + '\n'])
+            datawriter.writelines(["Illustrator: ", self.illustrator + '\n'])
+            datawriter.write('\n')
+
+            datawriter.writelines(['\n', '\n'])
+            datawriter.write("Description "+'\n')
+            datawriter.write(self.description +'\n')
+
+            datawriter.writelines(['\n', '\n'])
+
+            datawriter.write("Genres " + '\n')
+            for genre in self.genres:
+                datawriter.write(genre[0][0] + ' : ' + genre[1] + '\n')
+            datawriter.write('\n')
+
+            datawriter.write('\n')
+
+            datawriter.write("Themes " + '\n')
+            for theme in self.themes:
+                datawriter.write(theme[0][0] + ' : ' + theme[1] + '\n')
+            datawriter.write('\n')
+
+            datawriter.write("Trackers:" + '\n')
+
+            ttrackers = []
+            for key, val in self.trackers.items(): 
+                ttrackers.append([key, val]) 
+            for tracker in ttrackers:
+                datawriter.writelines([tracker[0] + ' : ', tracker[1] + '\n']) 
+
+
+            datawriter.close()
+
+            
 
 # Class For getting Cover Art
 class Cover_Art:
@@ -167,8 +222,8 @@ class Chapter:
         folderformat = replacewith(folderformat, '%Vl', self.volume)
         folderformat = replacewith(folderformat, '%Ch', self.chapter)
         folderformat = replacewith(folderformat, '%Ci', self.chapter_id)
-        folderformat = replacewith(folderformat, '%Ct', self.title)
-        folderformat = replacewith(folderformat, '%Sg', self.scanlation_group) 
+        folderformat = replacewith(folderformat, '%Ct', slugify(self.title, allow_unicode=True))
+        folderformat = replacewith(folderformat, '%Sg', slugify(self.scanlation_group.name, allow_unicode=True)) 
 
         # Make the directory for the chapter
         folderpath = os.path.join(path, folderformat)
@@ -184,7 +239,6 @@ class Chapter:
         session = FuturesSession(max_workers=os.cpu_count())
         for pgs in self.page_data:
             downloadPage(pgs, session)
-
 
 # Get The Chapter List
 # And for each Chapter, Get all of the Proper Files
@@ -215,10 +269,10 @@ class Chapters:
 
             pubTime = chp["attributes"]["publishAt"]
 
-            scanlation_group = ""
+            scanlation_group = None
             for relation in chp["relationships"]:
                 if relation["type"] == "scanlation_group":
-                    scanlation_group = Scanlation_Group(relation["id"]).name
+                    scanlation_group = Scanlation_Group(relation["id"])
 
             self.chapter_list.append(Chapter(chp_id, volume, chapter, title, pages, scanlation_group, pubTime)) 
 
