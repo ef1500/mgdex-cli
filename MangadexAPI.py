@@ -10,7 +10,6 @@ import time as tm
 
 from requests_futures.sessions import FuturesSession
 from concurrent.futures import ThreadPoolExecutor
-from rich import progress
 from slugify import slugify
 
 # Resolve Author Information
@@ -18,6 +17,8 @@ class Author:
     def __init__(self, aid):
         rq = rx.get("https://api.mangadex.org/author/{ax}".format(ax = aid)) 
         rqd = js.loads(rq.text)
+
+        self.author_id = aid
 
         self.name = rqd["data"]["attributes"]["name"]
         self.bio = rqd["data"]["attributes"]["biography"]
@@ -34,6 +35,16 @@ class Author:
         self.weibo = rqd["data"]["attributes"]["weibo"]
         self.naver = rqd["data"]["attributes"]["naver"]
         self.website = rqd["data"]["attributes"]["website"]
+
+        self.works = [] 
+        
+        # Put the IDs of all the author/illustrations into a list
+        # Actually, I just realized, I could just put Manga Class Objects In here
+        for work in rqd["data"]["relationships"]:
+            if work["type"] == "manga":
+                self.works.append(work["id"])
+
+        
 
 # Resolve Scanlation Group Name And Additional Information
 class Scanlation_Group:
@@ -106,7 +117,7 @@ class Manga:
             if mangaka["type"] == "author":
                 self.authorobj = Author(mangaka["id"])
                 self.author = mangaka["attributes"]["name"]
-            if mangaka["type"] == "illustrator":
+            if mangaka["type"] == "artist":
                 self.illustobj = Author(mangaka["id"])
                 self.illustrator = mangaka["attributes"]["name"]
     
@@ -246,10 +257,21 @@ class Chapters:
     def __init__(self, id):
         # NOTE: If there's more than 100 chapters, then offset will have to be used
         # To grab the rest of the chapters.
-        rq = rx.get("https://api.mangadex.org/chapter?limit=100&manga={ix}&translatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&includeFutureUpdates=1&order%5BcreatedAt%5D=asc&order%5BupdatedAt%5D=asc&order%5BpublishAt%5D=asc&order%5BreadableAt%5D=asc&order%5Bvolume%5D=asc&order%5Bchapter%5D=asc".format(ix = id))
-        rqd = js.loads(rq.text)
+        self.indexURL = "https://api.mangadex.org/chapter?limit=100&manga={ix}&translatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&includeFutureUpdates=1&order%5BcreatedAt%5D=asc&order%5BupdatedAt%5D=asc&order%5BpublishAt%5D=asc&order%5BreadableAt%5D=asc&order%5Bvolume%5D=asc&order%5Bchapter%5D=asc"
+        self.indexOldestURL = "https://api.mangadex.org/chapter?limit=1&manga={ix}&translatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&includeFutureUpdates=1&order%5BcreatedAt%5D=asc&order%5BupdatedAt%5D=asc&order%5BpublishAt%5D=asc&order%5BreadableAt%5D=asc&order%5Bvolume%5D=asc&order%5Bchapter%5D=asc"
+        self.indexLatestURL = "https://api.mangadex.org/chapter?limit=1&manga={ix}&translatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&includeFutureUpdates=1&order%5BcreatedAt%5D=desc&order%5BupdatedAt%5D=desc&order%5BpublishAt%5D=asc&order%5BreadableAt%5D=desc&order%5Bvolume%5D=desc&order%5Bchapter%5D=desc"
+
+        self.manga_id = id
 
         self.chapter_list = []
+
+    # Slap the indexer into a function so that we don't have to wait so long just to index the latest chapter
+    def indexAllChapters(self):
+
+        # NOTE: If there's more than 100 chapters, then offset will have to be used
+        # To grab the rest of the chapters.
+        rq = rx.get(self.indexURL.format(ix = self.manga_id))
+        rqd = js.loads(rq.text)
 
         for chp in rqd["data"]:
             chp_id = chp["id"]
@@ -309,8 +331,67 @@ class Chapters:
                 collected_chapters += rqd["limit"]
                 offset += rqd["limit"]
 
+    def indexLatestChapter(self):
+        rq = rx.get(self.indexLatestURL.format(ix = self.manga_id))
+        rqd = js.loads(rq.text)
+
+        for chp in rqd["data"]:
+            chp_id = chp["id"]
+
+            volume = chp["attributes"]["volume"]
+            chapter = chp["attributes"]["chapter"]
+            title = chp["attributes"]["title"]
+
+            if volume == None:
+                volume = "No_Volume"
+            if chapter == None:
+                chapter = "Unknown Chapter"
+            if title == None:
+                title = ""
+
+            pages = chp["attributes"]["pages"]
+
+            pubTime = chp["attributes"]["publishAt"]
+
+            scanlation_group = None
+            for relation in chp["relationships"]:
+                if relation["type"] == "scanlation_group":
+                    scanlation_group = Scanlation_Group(relation["id"])
+
+            self.chapter_list.append(Chapter(chp_id, volume, chapter, title, pages, scanlation_group, pubTime)) 
+
+    def indexOldestChapter(self):
+        rq = rx.get(self.indexOldestURL.format(ix = self.manga_id))
+        rqd = js.loads(rq.text)
+
+        for chp in rqd["data"]:
+            chp_id = chp["id"]
+
+            volume = chp["attributes"]["volume"]
+            chapter = chp["attributes"]["chapter"]
+            title = chp["attributes"]["title"]
+
+            if volume == None:
+                volume = "No_Volume"
+            if chapter == None:
+                chapter = "Unknown Chapter"
+            if title == None:
+                title = ""
+
+            pages = chp["attributes"]["pages"]
+
+            pubTime = chp["attributes"]["publishAt"]
+
+            scanlation_group = None
+            for relation in chp["relationships"]:
+                if relation["type"] == "scanlation_group":
+                    scanlation_group = Scanlation_Group(relation["id"])
+
+            self.chapter_list.append(Chapter(chp_id, volume, chapter, title, pages, scanlation_group, pubTime))
+
     def DownloadAll(self, path, folderformat):
 
+        self.indexAllChapters()
         # os.cpu_count() * 2 for full throttle, but we're going to split that throttle among
         # the chapter downloader and the page downloader
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as threadpool:
@@ -318,10 +399,12 @@ class Chapters:
                 threadpool.submit(chpts.DownloadChapter, path, folderformat) 
 
     def DownloadLatest(self, path, folderformat):
-        chpt = self.chapter_list[-1]
+        self.indexLatestChapter()
+        chpt = self.chapter_list[0]
         chpt.DownloadChapter(path, folderformat)
 
     def DownloadOldest(self, path, folderformat):
+        self.indexOldestChapter()
         chpt = self.chapter_list[0]
         chpt.DownloadChapter(path, folderformat)
 
@@ -333,6 +416,19 @@ def resoveID(mangaName):
     id = ""
     if rqd["total"] == 0:
         print("Manga Not found")
+    else:
+        for entry in rqd["data"]:
+            id = entry["id"]
+        return id
+
+# Function to Resolve an Author ID based upon user input
+def resolveArtist(artistName):
+    rq = rx.get("https://api.mangadex.org/author?name={ax}&limit=1".format(ax=artistName))
+    rqd = js.loads(rq.text)
+
+    id = ""
+    if rqd["response"] == "collection":
+        print("Author/Artist Not found")
     else:
         for entry in rqd["data"]:
             id = entry["id"]
